@@ -3,116 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parkour</title>
+    <title>3D Flight Simulator</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', sans-serif; }
         canvas { display: block; }
         #ui {
             position: absolute;
             top: 20px;
             left: 20px;
             color: white;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.6);
             padding: 15px;
             border-radius: 8px;
-            pointer-events: none; /* Let clicks pass through to the game */
-        }
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 10px;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
             pointer-events: none;
+            text-shadow: 1px 1px 2px black;
         }
+        #speedometer {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            color: #10b981;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: monospace;
+        }
+        .key { color: #fbbf24; font-weight: bold; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
     <div id="ui">
-        <h2 style="margin: 0 0 10px 0; color: #38bdf8;">Neon Parkour</h2>
-        <p style="margin: 5px 0;"><b>WASD</b>: Move</p>
-        <p style="margin: 5px 0;"><b>Arrows</b>: Look Around</p>
-        <p style="margin: 5px 0;"><b>Space</b>: Jump</p>
-        <p style="margin: 15px 0 0 0; color: #fbbf24; font-size: 0.9em;">Don't fall into the void!</p>
+        <h2 style="margin: 0 0 10px 0; color: #38bdf8;">Flight Sim</h2>
+        <p style="margin: 5px 0;"><span class="key">W / S</span> : Pitch (Nose Up/Down)</p>
+        <p style="margin: 5px 0;"><span class="key">A / D</span> : Yaw (Turn Left/Right)</p>
+        <p style="margin: 5px 0;"><span class="key">Q / E</span> : Roll (Tilt Left/Right)</p>
+        <p style="margin: 5px 0;"><span class="key">↑ / ↓</span> : Throttle (Speed)</p>
+        <p style="margin: 15px 0 0 0; color: #ef4444; font-size: 0.9em;">Avoid the buildings and the ground!</p>
     </div>
-    
-    <div id="crosshair"></div>
+
+    <div id="speedometer">Speed: 0 kts</div>
 
     <script>
-        // 1. Scene Setup
+        // 1. Scene & Camera Setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0f172a); // Dark night sky
-        scene.fog = new THREE.Fog(0x0f172a, 10, 50); // Adds atmosphere and hides loading platforms
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.002); // Distance fog
 
-        // 2. Camera Setup
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.rotation.order = 'YXZ'; // Essential for First Person cameras (Yaw, Pitch, Roll)
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
         
-        // 3. Renderer Setup
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // 4. Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        // 2. Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0x38bdf8, 0.8);
-        dirLight.position.set(10, 20, 10);
-        scene.add(dirLight);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        sunLight.position.set(100, 200, 50);
+        sunLight.castShadow = true;
+        scene.add(sunLight);
 
-        // 5. Player Physics & State
-        const player = {
-            x: 0, y: 5, z: 0,
-            vy: 0, // Vertical velocity
-            height: 1.5, // How tall the player is
-            speed: 0.15, // Movement speed
-            jumpPower: 0.5, 
-            gravity: 0.015,
-            grounded: false
-        };
+        // 3. Environment (Ground & Runway)
+        const groundGeo = new THREE.PlaneGeometry(4000, 4000);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); // Grass green
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
 
-        // 6. Platform Generation
-        const platforms = [];
+        const runwayGeo = new THREE.PlaneGeometry(40, 600);
+        const runwayMat = new THREE.MeshLambertMaterial({ color: 0x333333 }); // Dark asphalt
+        const runway = new THREE.Mesh(runwayGeo, runwayMat);
+        runway.rotation.x = -Math.PI / 2;
+        runway.position.set(0, 0.1, -200); // Slightly above ground to prevent Z-fighting
+        scene.add(runway);
+
+        // 4. Buildings (Obstacles)
+        const buildings = [];
+        const buildingMaterial = new THREE.MeshLambertMaterial({ color: 0x94a3b8 });
         
-        function createPlatform(x, y, z, width, depth, color) {
-            const geometry = new THREE.BoxGeometry(width, 1, depth);
-            const material = new THREE.MeshLambertMaterial({ color: color });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(x, y, z);
-            scene.add(mesh);
-            platforms.push({ x, y, z, w: width, d: depth, h: 1 });
+        // Generate a random city around the runway
+        for (let i = 0; i < 150; i++) {
+            let width = 15 + Math.random() * 20;
+            let depth = 15 + Math.random() * 20;
+            let height = 40 + Math.random() * 150; // Skyscrapers
+
+            let x = (Math.random() - 0.5) * 2000;
+            let z = (Math.random() - 0.5) * 2000;
+
+            // Keep buildings off the runway
+            if (Math.abs(x) < 80 && z < 200 && z > -600) continue;
+
+            const bGeo = new THREE.BoxGeometry(width, height, depth);
+            const building = new THREE.Mesh(bGeo, buildingMaterial);
+            building.position.set(x, height / 2, z);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+            buildings.push(building);
         }
 
-        // Safe starting platform
-        createPlatform(0, 0, 0, 8, 8, 0x22c55e);
+        // 5. The Aircraft
+        const plane = new THREE.Group();
+        
+        // Fuselage (Body)
+        const bodyGeo = new THREE.BoxGeometry(2, 2, 8);
+        const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.castShadow = true;
+        plane.add(body);
 
-        // Generate the parkour course
-        let currentZ = -6;
-        for (let i = 0; i < 30; i++) {
-            // Platforms get further apart and change heights as you progress
-            let gap = 4 + (Math.random() * 5); 
-            currentZ -= gap;
-            
-            let pX = (Math.random() - 0.5) * 12; // Strafe left/right
-            let pY = (Math.random() - 0.5) * 3;  // Vary height slightly
-            
-            // Make platforms smaller over time
-            let size = Math.max(2, 5 - (i * 0.1)); 
-            
-            createPlatform(pX, pY, currentZ, size, size, 0xf43f5e); // Red platforms
+        // Wings
+        const wingGeo = new THREE.BoxGeometry(16, 0.2, 3);
+        const wingMat = new THREE.MeshLambertMaterial({ color: 0xef4444 }); // Red wings
+        const wings = new THREE.Mesh(wingGeo, wingMat);
+        wings.position.set(0, 0, 0);
+        wings.castShadow = true;
+        plane.add(wings);
+
+        // Tail
+        const tailGeo = new THREE.BoxGeometry(5, 0.2, 2);
+        const tail = new THREE.Mesh(tailGeo, wingMat);
+        tail.position.set(0, 0.5, 3.5);
+        plane.add(tail);
+        
+        const rudderGeo = new THREE.BoxGeometry(0.2, 3, 2);
+        const rudder = new THREE.Mesh(rudderGeo, wingMat);
+        rudder.position.set(0, 1.5, 3.5);
+        plane.add(rudder);
+
+        scene.add(plane);
+
+        // 6. Flight Physics & State
+        let speed = 0;
+        const maxSpeed = 3.0;
+        const minSpeed = -0.5; // Reverse taxiing
+        const acceleration = 0.02;
+        const turnSpeed = 0.02;
+
+        function resetFlight() {
+            plane.position.set(0, 2, 80); // Start at beginning of runway
+            plane.rotation.set(0, 0, 0);
+            speed = 0;
         }
+        resetFlight(); // Initialize position
 
         // 7. Input Handling
         const keys = {};
-        window.addEventListener('keydown', e => keys[e.code] = true);
-        window.addEventListener('keyup', e => keys[e.code] = false);
+        window.addEventListener('keydown', e => { keys[e.code] = true; });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-        // Handle window resizing
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -120,81 +165,83 @@
         });
 
         // 8. The Game Loop
+        const planeBox = new THREE.Box3();
+        const buildingBox = new THREE.Box3();
+
         function animate() {
             requestAnimationFrame(animate);
 
-            // --- CAMERA ROTATION (Arrows) ---
-            if (keys['ArrowLeft']) camera.rotation.y += 0.04;
-            if (keys['ArrowRight']) camera.rotation.y -= 0.04;
-            if (keys['ArrowUp']) camera.rotation.x = Math.min(Math.PI / 2, camera.rotation.x + 0.04);
-            if (keys['ArrowDown']) camera.rotation.x = Math.max(-Math.PI / 2, camera.rotation.x - 0.04);
-
-            // --- MOVEMENT (WASD) ---
-            let moveX = 0, moveZ = 0;
-            if (keys['KeyW']) moveZ = -1;
-            if (keys['KeyS']) moveZ = 1;
-            if (keys['KeyA']) moveX = -1;
-            if (keys['KeyD']) moveX = 1;
-
-            // Calculate forward/right vectors based on where the camera is looking
-            if (moveX !== 0 || moveZ !== 0) {
-                // Find angle of movement
-                let angle = Math.atan2(moveX, moveZ) + camera.rotation.y;
-                player.x += Math.sin(angle) * player.speed;
-                player.z += Math.cos(angle) * player.speed;
-            }
-
-            // --- JUMPING & GRAVITY ---
-            if (keys['Space'] && player.grounded) {
-                player.vy = player.jumpPower;
-                player.grounded = false;
-            }
+            // --- THROTTLE (Up/Down Arrows) ---
+            if (keys['ArrowUp']) speed += acceleration;
+            if (keys['ArrowDown']) speed -= acceleration;
             
-            player.vy -= player.gravity; // Apply gravity
-            let nextY = player.y + player.vy;
+            // Add air resistance/drag if no keys pressed
+            if (!keys['ArrowUp'] && !keys['ArrowDown']) speed *= 0.99; 
+            
+            // Clamp speed limits
+            speed = Math.max(minSpeed, Math.min(maxSpeed, speed)); 
+
+            // Update UI
+            document.getElementById('speedometer').innerText = `Speed: ${Math.floor(speed * 100)} kts`;
+
+            // Only allow flying controls if moving fast enough, otherwise it's just taxiing
+            let controlEffectiveness = Math.min(1, Math.abs(speed) / 0.5); 
+
+            // --- FLIGHT CONTROLS ---
+            if (keys['KeyW']) plane.rotateX(turnSpeed * controlEffectiveness);  // Pitch Down
+            if (keys['KeyS']) plane.rotateX(-turnSpeed * controlEffectiveness); // Pitch Up
+            
+            if (keys['KeyQ']) plane.rotateZ(turnSpeed * controlEffectiveness);  // Roll Left
+            if (keys['KeyE']) plane.rotateZ(-turnSpeed * controlEffectiveness); // Roll Right
+            
+            if (keys['KeyA']) plane.rotateY(turnSpeed * controlEffectiveness);  // Yaw Left
+            if (keys['KeyD']) plane.rotateY(-turnSpeed * controlEffectiveness); // Yaw Right
+
+            // --- MOVEMENT ---
+            // Move forward along the plane's local Z axis (negative Z is forward in Three.js)
+            plane.translateZ(-speed); 
+
+            // --- 3RD PERSON CAMERA FOLLOW ---
+            // Calculate position behind and above the plane
+            const relativeCameraOffset = new THREE.Vector3(0, 8, 25);
+            const cameraOffset = relativeCameraOffset.applyMatrix4(plane.matrixWorld);
+            
+            // Smoothly interpolate camera position (Lerp) for cinematic feel
+            camera.position.lerp(cameraOffset, 0.1);
+            
+            // Camera always looks at a point slightly ahead of the plane
+            const lookTarget = new THREE.Vector3(0, 0, -20).applyMatrix4(plane.matrixWorld);
+            camera.lookAt(lookTarget);
 
             // --- COLLISION DETECTION ---
-            player.grounded = false;
-            
-            for (let p of platforms) {
-                // Define the edges of the platform
-                let minX = p.x - p.w / 2;
-                let maxX = p.x + p.w / 2;
-                let minZ = p.z - p.d / 2;
-                let maxZ = p.z + p.d / 2;
-                let topY = p.y + p.h / 2;
+            planeBox.setFromObject(plane);
 
-                // Check if player is directly above the platform (X and Z bounds)
-                if (player.x > minX && player.x < maxX && player.z > minZ && player.z < maxZ) {
-                    
-                    // Check if player's feet just crossed the top of the platform while falling
-                    if (player.y - player.height >= topY && nextY - player.height <= topY && player.vy < 0) {
-                        nextY = topY + player.height; // Snap feet to top of platform
-                        player.vy = 0;
-                        player.grounded = true;
-                    }
+            // Ground Collision
+            if (plane.position.y < 1) {
+                // If we hit the ground hard, we crash. If we are flat, we land/taxi.
+                let pitch = Math.abs(plane.rotation.x);
+                let roll = Math.abs(plane.rotation.z);
+                
+                if (pitch > 0.3 || roll > 0.3 || plane.position.y < 0) {
+                    resetFlight(); // Crash!
+                } else {
+                    plane.position.y = 1; // Stay flat on ground
+                    plane.rotation.x = 0;
+                    plane.rotation.z = 0;
                 }
             }
 
-            player.y = nextY;
-
-            // --- DEATH / RESPAWN ---
-            if (player.y < -20) {
-                player.x = 0; 
-                player.y = 5; 
-                player.z = 0; 
-                player.vy = 0;
-                camera.rotation.set(0, 0, 0); // Reset look direction
+            // Building Collision
+            for (let i = 0; i < buildings.length; i++) {
+                buildingBox.setFromObject(buildings[i]);
+                if (planeBox.intersectsBox(buildingBox)) {
+                    resetFlight(); // Crash into building!
+                }
             }
 
-            // Update camera position to match player physics
-            camera.position.set(player.x, player.y, player.z);
-
-            // Render scene
             renderer.render(scene, camera);
         }
 
-        // Start the game
         animate();
     </script>
 </body>

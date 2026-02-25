@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>dsim</title>
+    <title>csim</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #050510; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', sans-serif; }
         canvas { display: block; }
         #ui {
             position: absolute; top: 20px; left: 20px; color: white;
-            background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px;
-            pointer-events: none; border: 1px solid #333;
+            background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 8px;
+            pointer-events: none; border: 1px solid #555; text-shadow: 1px 1px 2px black;
         }
         #hud {
             position: absolute; bottom: 30px; right: 30px; color: #10b981;
-            background: rgba(0, 0, 0, 0.9); padding: 15px 25px; border-radius: 8px;
-            font-size: 1.5rem; font-family: monospace; text-align: right; border: 2px solid #333;
+            background: rgba(0, 0, 0, 0.8); padding: 15px 25px; border-radius: 8px;
+            font-size: 1.5rem; font-family: monospace; text-align: right; border: 2px solid #555;
         }
         .hud-line { margin: 5px 0; }
         .warning { color: #ef4444; font-weight: bold; animation: blink 0.5s infinite; display: none; }
-        .info { color: #fbbf24; font-size: 1rem; }
+        .info { color: #fcd34d; font-size: 1rem; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -27,14 +27,14 @@
 <body>
 
     <div id="ui">
-        <h2 style="margin: 0 0 10px 0; color: #38bdf8;">Night Drive</h2>
-        <p><b>W / S</b> : Gas / Brake (Reverse)</p>
+        <h2 style="margin: 0 0 10px 0; color: #38bdf8;">City Cruiser</h2>
+        <p><b>W / S</b> : Gas / Brake</p>
         <p><b>A / D</b> : Steer</p>
-        <hr style="border-color: #333;">
+        <hr style="border-color: #555;">
         <p class="info">RULES OF THE ROAD:</p>
-        <p>- Speed Limit: 45 mph</p>
-        <p>- Stay on the paved roads</p>
-        <p>- Avoid collisions</p>
+        <p>- Limit: 45 mph</p>
+        <p>- Stop at Red Lights</p>
+        <p>- Don't fall in the river!</p>
     </div>
 
     <div id="hud">
@@ -44,10 +44,10 @@
     </div>
 
     <script>
-        // --- 1. SETUP (Night Mode) ---
+        // --- 1. SETUP (Daytime) ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050510); // Deep night sky
-        scene.fog = new THREE.FogExp2(0x050510, 0.003); // Thick night fog
+        scene.background = new THREE.Color(0x87CEEB); // Sky Blue
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.002); // Distance Fog
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -55,89 +55,80 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // Dim ambient light (moonlight)
-        const ambientLight = new THREE.AmbientLight(0x202040, 0.6);
+        // Bright sunlight
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        sunLight.position.set(200, 500, 300);
+        sunLight.castShadow = true;
+        sunLight.shadow.camera.left = -500; sunLight.shadow.camera.right = 500;
+        sunLight.shadow.camera.top = 500; sunLight.shadow.camera.bottom = -500;
+        scene.add(sunLight);
 
-        // --- 2. PROCEDURAL TEXTURES (Glowing Windows) ---
-        function createBuildingTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 512;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0, 0, 256, 512); // Dark building
-            
-            // Draw glowing windows
-            for(let y = 20; y < 500; y += 20) {
-                for(let x = 20; x < 240; x += 20) {
-                    if(Math.random() > 0.6) { // 40% chance of light being on
-                        ctx.fillStyle = Math.random() > 0.2 ? '#fef08a' : '#93c5fd'; // Yellow or blue tint
-                        ctx.shadowBlur = 10;
-                        ctx.shadowColor = ctx.fillStyle;
-                        ctx.fillRect(x, y, 10, 12); 
-                        ctx.shadowBlur = 0; // Reset for performance
-                    }
-                }
-            }
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
-            return tex;
-        }
-        const buildingMat = new THREE.MeshPhongMaterial({ map: createBuildingTexture(), shininess: 10 });
+        // --- 2. MATERIALS ---
+        const buildingMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 }); // Light gray concrete
+        const roadMat = new THREE.MeshLambertMaterial({ color: 0x475569 }); // Asphalt
+        const grassMat = new THREE.MeshLambertMaterial({ color: 0x86efac }); // Grass
+        const waterMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.8, shininess: 100 });
+        
+        // Traffic Light Materials
+        const lightOff = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        const lightRed = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const lightYellow = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+        const lightGreen = new THREE.MeshBasicMaterial({ color: 0x22c55e });
 
-        // --- 3. CITY GRID ENVIRONMENT ---
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(2000, 2000), 
-            new THREE.MeshLambertMaterial({ color: 0x0f172a }) // Dark grass/dirt
-        );
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
+        // --- 3. ENVIRONMENT & GRID ---
         const roadWidth = 30;
         const blockSize = 120;
-        const citySize = 10; // 10x10 blocks
+        const citySize = 12; // Radius in blocks
+        const mapLimit = citySize * blockSize;
 
-        // Roads Material
-        const roadMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
-        const lineMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 }); // Yellow lines
+        // Ground base
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(mapLimit*2.5, mapLimit*2.5), grassMat);
+        ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Giant River in the middle (Z roughly 0)
+        const river = new THREE.Mesh(new THREE.PlaneGeometry(mapLimit*2.5, 80), waterMat);
+        river.rotation.x = -Math.PI / 2; river.position.set(0, 0.2, 0);
+        scene.add(river);
 
         const buildings = [];
-        
-        // Build Grid
+        const trafficLights = [];
+
+        // Build City
         for (let x = -citySize; x <= citySize; x++) {
             for (let z = -citySize; z <= citySize; z++) {
-                
                 let posX = x * blockSize;
                 let posZ = z * blockSize;
 
-                // Create Roads (Horizontal and Vertical)
-                if (z === 0) {
-                    let hRoad = new THREE.Mesh(new THREE.PlaneGeometry(blockSize, roadWidth), roadMat);
-                    hRoad.rotation.x = -Math.PI / 2; hRoad.position.set(posX, 0.1, posZ); hRoad.receiveShadow = true;
-                    scene.add(hRoad);
-                }
-                if (x === 0) {
-                    let vRoad = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, blockSize), roadMat);
-                    vRoad.rotation.x = -Math.PI / 2; vRoad.position.set(posX, 0.1, posZ); vRoad.receiveShadow = true;
-                    scene.add(vRoad);
+                // Horizontal Roads (Bridges if over river)
+                let isBridge = (z === 0);
+                let hRoad = new THREE.Mesh(new THREE.PlaneGeometry(blockSize, roadWidth), roadMat);
+                hRoad.rotation.x = -Math.PI / 2; 
+                hRoad.position.set(posX, isBridge ? 0.5 : 0.1, posZ); 
+                hRoad.receiveShadow = true;
+                scene.add(hRoad);
+
+                // Vertical Roads
+                let vRoad = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, blockSize), roadMat);
+                vRoad.rotation.x = -Math.PI / 2; vRoad.position.set(posX, 0.1, posZ); vRoad.receiveShadow = true;
+                scene.add(vRoad);
+
+                // Add Traffic Lights at Intersections
+                if (x !== -citySize && z !== -citySize) {
+                    createIntersectionPole(posX + 20, posZ + 20);
                 }
 
-                // Create Buildings in the blocks (skip the intersections)
-                if (x !== 0 && z !== 0) {
-                    // 4 buildings per block
-                    for(let b = 0; b < 4; b++) {
-                        let w = 20 + Math.random() * 20;
-                        let d = 20 + Math.random() * 20;
-                        let h = 40 + Math.random() * 100;
-                        
-                        let bX = posX + (b%2 === 0 ? 25 : -25);
-                        let bZ = posZ + (b < 2 ? 25 : -25);
-
+                // Buildings (Skip river area)
+                if (x !== 0 && z !== 0 && !isBridge) {
+                    for(let b = 0; b < 2; b++) {
+                        let w = 30 + Math.random() * 20, d = 30 + Math.random() * 20, h = 40 + Math.random() * 120;
+                        let bX = posX + (b%2 === 0 ? 30 : -30);
+                        let bZ = posZ + (b < 2 ? 30 : -30);
                         const building = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), buildingMat);
                         building.position.set(bX, h/2, bZ);
                         building.castShadow = true; building.receiveShadow = true;
-                        
-                        buildingMat.map.repeat.set(w/40, h/40); // Scale texture
                         scene.add(building);
                         buildings.push(building);
                     }
@@ -145,94 +136,75 @@
             }
         }
 
-        // --- 4. PLAYER CAR BUILDER ---
-        function createCar(colorHex, isPlayer) {
-            const carGroup = new THREE.Group();
+        // Helper to draw traffic lights
+        function createIntersectionPole(x, z) {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 15), new THREE.MeshLambertMaterial({color: 0x222222}));
+            pole.position.set(x, 7.5, z);
+            scene.add(pole);
             
-            // Chassis
+            const box = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 2), new THREE.MeshLambertMaterial({color: 0x111111}));
+            box.position.set(x, 15, z);
+            scene.add(box);
+
+            // Light indicator meshes
+            const nsLight = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 4), lightGreen);
+            nsLight.position.set(x, 15, z + 1.05); // Facing North/South roads
+            scene.add(nsLight);
+            
+            const ewLight = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 4), lightRed);
+            ewLight.position.set(x + 1.05, 15, z); // Facing East/West roads
+            ewLight.rotation.y = Math.PI / 2;
+            scene.add(ewLight);
+
+            trafficLights.push({ ns: nsLight, ew: ewLight, x: x, z: z });
+        }
+
+        // --- 4. PLAYER CAR ---
+        function createCar(colorHex) {
+            const carGroup = new THREE.Group();
             const chassis = new THREE.Mesh(new THREE.BoxGeometry(4, 1.2, 9), new THREE.MeshPhongMaterial({ color: colorHex }));
             chassis.position.y = 1; chassis.castShadow = true;
-            carGroup.add(chassis);
-
-            // Cabin
-            const cabin = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.5, 5), new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 100 }));
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.5, 5), new THREE.MeshPhongMaterial({ color: 0x111111 }));
             cabin.position.set(0, 2.3, -0.5); cabin.castShadow = true;
-            carGroup.add(cabin);
-
-            // Taillights
-            const tailGeo = new THREE.BoxGeometry(1, 0.4, 0.2);
-            const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Emissive red
-            const tailL = new THREE.Mesh(tailGeo, tailMat); tailL.position.set(-1.5, 1.2, 4.6);
-            const tailR = new THREE.Mesh(tailGeo, tailMat); tailR.position.set(1.5, 1.2, 4.6);
-            carGroup.add(tailL, tailR);
-
-            // Headlights (Only for player to save performance)
-            if (isPlayer) {
-                const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                const headL = new THREE.Mesh(tailGeo, headMat); headL.position.set(-1.5, 1.2, -4.6);
-                const headR = new THREE.Mesh(tailGeo, headMat); headR.position.set(1.5, 1.2, -4.6);
-                carGroup.add(headL, headR);
-
-                // Actual Light Beams
-                function addSpotlight(x) {
-                    const spot = new THREE.SpotLight(0xffffee, 2, 200, Math.PI/5, 0.5, 1);
-                    spot.position.set(x, 1.5, -4);
-                    spot.target.position.set(x, 0, -50);
-                    spot.castShadow = true;
-                    carGroup.add(spot);
-                    carGroup.add(spot.target);
-                }
-                addSpotlight(-1.5);
-                addSpotlight(1.5);
-            }
-
+            carGroup.add(chassis, cabin);
             return carGroup;
         }
 
-        const playerCar = createCar(0x3b82f6, true); // Blue player car
+        const playerCar = createCar(0xef4444); // Red player car
+        playerCar.position.set(10, 0, 120); 
         scene.add(playerCar);
 
         // --- 5. TRAFFIC SYSTEM ---
         const trafficCars = [];
-        const colors = [0xff0000, 0x10b981, 0xf59e0b, 0xffffff, 0x6b7280];
-        
-        for(let i=0; i<30; i++) {
-            let tCar = createCar(colors[Math.floor(Math.random() * colors.length)], false);
-            
-            // Put them randomly on the main horizontal or vertical roads
+        const colors = [0x3b82f6, 0x10b981, 0xf59e0b, 0xffffff, 0x333333];
+        for(let i=0; i<40; i++) {
+            let tCar = createCar(colors[Math.floor(Math.random() * colors.length)]);
             let isHorizontal = Math.random() > 0.5;
-            let laneOffset = Math.random() > 0.5 ? 7 : -7; // Drive on right side
+            let laneOffset = Math.random() > 0.5 ? 7 : -7; 
             
             if(isHorizontal) {
-                tCar.position.set((Math.random() - 0.5) * 1500, 0, laneOffset);
+                tCar.position.set((Math.random() - 0.5) * mapLimit*2, 0, Math.floor((Math.random() - 0.5) * citySize) * blockSize + laneOffset);
                 tCar.rotation.y = laneOffset > 0 ? -Math.PI/2 : Math.PI/2;
             } else {
-                tCar.position.set(laneOffset, 0, (Math.random() - 0.5) * 1500);
+                tCar.position.set(Math.floor((Math.random() - 0.5) * citySize) * blockSize + laneOffset, 0, (Math.random() - 0.5) * mapLimit*2);
                 tCar.rotation.y = laneOffset > 0 ? 0 : Math.PI;
             }
-            
-            tCar.userData = { speed: 0.3 + Math.random() * 0.4 };
+            tCar.userData = { speed: 0.4 + Math.random() * 0.3 };
             scene.add(tCar);
             trafficCars.push(tCar);
         }
 
         // --- 6. PHYSICS & RULES STATE ---
         let speed = 0;
-        const maxSpeed = 1.2; // approx 80 mph
-        const acceleration = 0.015;
-        const braking = 0.03;
-        const turnSpeed = 0.04;
         let warningTimer = 0;
+        let lightState = 0; // 0: NS Green, 1: NS Yellow, 2: EW Green, 3: EW Yellow
 
         function showWarning(text) {
             const w = document.getElementById('ruleWarning');
             w.innerText = text;
             w.style.display = 'block';
-            warningTimer = 60; // frames
+            warningTimer = 60; 
         }
-
-        // Starting position
-        playerCar.position.set(7, 0, 0); 
 
         // --- 7. INPUTS ---
         const keys = {};
@@ -245,96 +217,97 @@
 
         function animate() {
             requestAnimationFrame(animate);
+            let time = Date.now();
 
-            // Throttle & Brake
-            if (keys['KeyW']) speed += acceleration;
-            if (keys['KeyS']) speed -= braking; 
-            
-            // Natural friction
+            // --- TRAFFIC LIGHT LOGIC (10 sec cycle) ---
+            let cycle = time % 10000;
+            let isNSGreen = false, isEWGreen = false;
+
+            if (cycle < 4000) { lightState = 0; isNSGreen = true; } // NS Green, EW Red
+            else if (cycle < 5000) { lightState = 1; }              // NS Yellow, EW Red
+            else if (cycle < 9000) { lightState = 2; isEWGreen = true; } // NS Red, EW Green
+            else { lightState = 3; }                                // NS Red, EW Yellow
+
+            trafficLights.forEach(tl => {
+                if(lightState === 0) { tl.ns.material = lightGreen; tl.ew.material = lightRed; }
+                if(lightState === 1) { tl.ns.material = lightYellow; tl.ew.material = lightRed; }
+                if(lightState === 2) { tl.ns.material = lightRed; tl.ew.material = lightGreen; }
+                if(lightState === 3) { tl.ns.material = lightRed; tl.ew.material = lightYellow; }
+            });
+
+            // --- DRIVING PHYSICS ---
+            if (keys['KeyW']) speed += 0.015;
+            if (keys['KeyS']) speed -= 0.03; 
             if (!keys['KeyW'] && !keys['KeyS']) speed *= 0.98; 
-            
-            // Hard speed limits
-            speed = Math.max(-0.3, Math.min(maxSpeed, speed)); 
+            speed = Math.max(-0.4, Math.min(1.5, speed)); 
 
-            // Steering (Only turn if moving)
             if (Math.abs(speed) > 0.05) {
-                let turningFactor = turnSpeed * (speed > 0 ? 1 : -1); // Reverse steering
-                if (keys['KeyA']) playerCar.rotation.y += turningFactor;  
-                if (keys['KeyD']) playerCar.rotation.y -= turningFactor; 
+                let turn = 0.04 * (speed > 0 ? 1 : -1);
+                if (keys['KeyA']) playerCar.rotation.y += turn;  
+                if (keys['KeyD']) playerCar.rotation.y -= turn; 
             }
 
-            // Movement
             playerCar.position.x -= Math.sin(playerCar.rotation.y) * speed;
             playerCar.position.z -= Math.cos(playerCar.rotation.y) * speed;
 
-            // --- TRAFFIC MOVEMENT ---
+            // --- THE INFINITE LOOP TRICK ---
+            if (playerCar.position.x > mapLimit) playerCar.position.x = -mapLimit + 10;
+            if (playerCar.position.x < -mapLimit) playerCar.position.x = mapLimit - 10;
+            if (playerCar.position.z > mapLimit) playerCar.position.z = -mapLimit + 10;
+            if (playerCar.position.z < -mapLimit) playerCar.position.z = mapLimit - 10;
+
             trafficCars.forEach(car => {
                 car.position.x -= Math.sin(car.rotation.y) * car.userData.speed;
                 car.position.z -= Math.cos(car.rotation.y) * car.userData.speed;
-                
-                // Wrap around city
-                if(car.position.x > 1000) car.position.x = -1000;
-                if(car.position.x < -1000) car.position.x = 1000;
-                if(car.position.z > 1000) car.position.z = -1000;
-                if(car.position.z < -1000) car.position.z = 1000;
+                if(car.position.x > mapLimit) car.position.x = -mapLimit;
+                if(car.position.x < -mapLimit) car.position.x = mapLimit;
+                if(car.position.z > mapLimit) car.position.z = -mapLimit;
+                if(car.position.z < -mapLimit) car.position.z = mapLimit;
             });
 
-            // --- ROAD RULES & COLLISIONS ---
-            let mph = Math.floor(Math.abs(speed) * 70);
-            
-            // Rule 1: Speeding
-            if (mph > 45) {
-                showWarning("SPEEDING!");
+            // --- RULES ENGINE ---
+            let mph = Math.floor(Math.abs(speed) * 60);
+            if (mph > 45) showWarning("SPEEDING!");
+
+            // Intersection Red Light Check
+            let inIntersection = (Math.abs(playerCar.position.x % blockSize) < roadWidth/2) && (Math.abs(playerCar.position.z % blockSize) < roadWidth/2);
+            if (inIntersection && speed > 0.2) {
+                // Determine direction car is facing
+                let facingNS = Math.abs(Math.cos(playerCar.rotation.y)) > 0.7; // Facing largely North/South
+                let facingEW = Math.abs(Math.sin(playerCar.rotation.y)) > 0.7; // Facing largely East/West
+                
+                if (facingNS && !isNSGreen && lightState !== 1) showWarning("RAN RED LIGHT!");
+                if (facingEW && !isEWGreen && lightState !== 3) showWarning("RAN RED LIGHT!");
             }
 
-            // Rule 2: Off-Road (Check if outside the road width grid)
-            let onRoadX = Math.abs(playerCar.position.x % blockSize) < roadWidth/2 || Math.abs(playerCar.position.x % blockSize) > blockSize - roadWidth/2;
-            let onRoadZ = Math.abs(playerCar.position.z % blockSize) < roadWidth/2 || Math.abs(playerCar.position.z % blockSize) > blockSize - roadWidth/2;
-            
-            if (!onRoadX && !onRoadZ) {
-                showWarning("OFF ROAD!");
-                speed *= 0.9; // Grass slows you down
+            // Water / River Check
+            if (Math.abs(playerCar.position.z) < 38 && Math.abs(playerCar.position.x % blockSize) > roadWidth/2) {
+                showWarning("IN THE RIVER!");
+                speed *= 0.8; // Water slows you down
+                playerCar.position.y = -1; // Sink
+            } else {
+                playerCar.position.y = 0; // Normal road
             }
 
             // Collisions
             carBox.setFromObject(playerCar);
-            
-            // Hit Buildings
             for (let b of buildings) {
                 obstacleBox.setFromObject(b);
-                if (carBox.intersectsBox(obstacleBox)) {
-                    showWarning("CRASH!");
-                    speed = -speed * 0.5; // Bounce back
-                }
+                if (carBox.intersectsBox(obstacleBox)) { showWarning("CRASH!"); speed = -speed * 0.5; }
             }
-            
-            // Hit Traffic
             for (let t of trafficCars) {
                 obstacleBox.setFromObject(t);
-                if (carBox.intersectsBox(obstacleBox)) {
-                    showWarning("VEHICLE COLLISION!");
-                    speed = -speed * 0.5; 
-                }
+                if (carBox.intersectsBox(obstacleBox)) { showWarning("ACCIDENT!"); speed = -speed * 0.5; }
             }
 
-            // Warning UI Timer
-            if(warningTimer > 0) {
-                warningTimer--;
-            } else {
-                document.getElementById('ruleWarning').style.display = 'none';
-            }
-
-            // --- CAMERA ---
-            // Chase camera setup
-            const camOffset = new THREE.Vector3(0, 5, 12).applyMatrix4(playerCar.matrixWorld);
-            camera.position.lerp(camOffset, 0.2); // Smooth follow
-            
-            // Look slightly ahead of the car
-            const lookTarget = new THREE.Vector3(0, 0, -10).applyMatrix4(playerCar.matrixWorld);
-            camera.lookAt(lookTarget);
-
-            // Update UI
+            // UI
+            if(warningTimer > 0) warningTimer--; else document.getElementById('ruleWarning').style.display = 'none';
             document.getElementById('speedometer').innerText = `Speed: ${mph} mph`;
+
+            // Camera follow
+            const camOffset = new THREE.Vector3(0, 5, 12).applyMatrix4(playerCar.matrixWorld);
+            camera.position.lerp(camOffset, 0.2); 
+            camera.lookAt(new THREE.Vector3(0, 0, -10).applyMatrix4(playerCar.matrixWorld));
 
             renderer.render(scene, camera);
         }

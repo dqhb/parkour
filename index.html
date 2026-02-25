@@ -29,8 +29,9 @@
 <body>
 
     <div id="ui">
-        <h2 style="margin: 0 0 10px 0; color: #38bdf8;">Parkour Run</h2>
+        <h2 style="margin: 0 0 10px 0; color: #38bdf8;">Parkour Flow</h2>
         <p><span class="highlight">W A S D</span> : Move / Strafe</p>
+        <p><span class="highlight">CTRL</span> : Sprint</p>
         <p><span class="highlight">SPACE</span> : Jump</p>
         <p><span class="highlight">ARROW KEYS</span> : Look Around</p>
         <hr style="border-color: #555;">
@@ -44,7 +45,7 @@
         // --- 1. SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1e1e2f);
-        scene.fog = new THREE.Fog(0x1e1e2f, 10, 50);
+        scene.fog = new THREE.Fog(0x1e1e2f, 10, 60);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -61,18 +62,19 @@
         const player = {
             pos: new THREE.Vector3(0, 5, 0),
             vel: new THREE.Vector3(0, 0, 0),
-            size: new THREE.Vector3(0.8, 1.8, 0.8), // Player Hitbox (Width, Height, Depth)
+            size: new THREE.Vector3(0.8, 1.8, 0.8), 
             isGrounded: false,
-            yaw: 0,   // Left/Right rotation
-            pitch: 0  // Up/Down rotation
+            yaw: 0,   
+            pitch: 0  
         };
 
         const physics = {
             gravity: 0.012,
             jumpPower: 0.28,
-            speed: 0.12,
+            baseSpeed: 0.14,  // Slightly faster base speed
+            sprintMult: 1.6,  // 60% faster when holding CTRL
             friction: 0.8,
-            airControl: 0.6
+            airControl: 0.85  // MUCH higher air control so you can steer mid-air easily
         };
 
         let currentCheckpoint = new THREE.Vector3(0, 5, 0);
@@ -81,21 +83,21 @@
         const keys = {};
         window.addEventListener('keydown', e => { 
             keys[e.code] = true; 
-            if (e.code === 'Space' && player.isGrounded) {
-                player.vel.y = physics.jumpPower;
-                player.isGrounded = false;
+            // Prevent spacebar and arrows from scrolling the page
+            if(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].indexOf(e.code) > -1) {
+                e.preventDefault();
             }
         });
         window.addEventListener('keyup', e => keys[e.code] = false);
 
-        // --- 4. INFINITE LEVEL GENERATOR ---
-        const platforms = []; // Stores meshes
-        const hitboxes = [];  // Stores Box3s for collision
+        // --- 4. EASIER LEVEL GENERATOR ---
+        const platforms = []; 
+        const hitboxes = [];  
         let platformIndex = 0;
         let lastPos = new THREE.Vector3(0, 0, 0);
 
         const blockGeo = new THREE.BoxGeometry(1, 1, 1);
-        const cpMat = new THREE.MeshLambertMaterial({ color: 0x10b981 }); // Checkpoint green
+        const cpMat = new THREE.MeshLambertMaterial({ color: 0x10b981 }); 
 
         function createBlock(x, y, z, w, h, d, material, isCheckpoint = false) {
             const mesh = new THREE.Mesh(blockGeo, material);
@@ -116,44 +118,43 @@
         function generateNextPlatform() {
             platformIndex++;
             
-            // Randomize distance and height
-            let gapZ = 3.5 + Math.random() * 2.5; // Forward gap
-            let gapX = (Math.random() - 0.5) * 4; // Left/Right shift
-            let gapY = (Math.random() - 0.5) * 3; // Up/Down shift
+            // EASIER GAPS: Shorter distances and less extreme height changes
+            let gapZ = 2.5 + Math.random() * 2.0; 
+            let gapX = (Math.random() - 0.5) * 2.5; 
+            let gapY = (Math.random() - 0.5) * 1.5; 
 
-            // Cap the downward and upward shifts so it's jumpable
-            if (gapY > 1.5) gapY = 1.5; 
-            if (gapY < -2) gapY = -2;
+            // Prevent unfair upward jumps
+            if (gapY > 1.0) gapY = 1.0; 
+            if (gapY < -1.5) gapY = -1.5;
 
             lastPos.x += gapX;
             lastPos.y += gapY;
-            lastPos.z -= gapZ; // Move forward into negative Z
+            lastPos.z -= gapZ; 
 
             let typeRoll = Math.random();
-            let isCp = (platformIndex % 10 === 0); // Checkpoint every 10 jumps
+            let isCp = (platformIndex % 10 === 0); 
             
             let color = new THREE.Color().setHSL(Math.random(), 0.8, 0.5);
             let mat = isCp ? cpMat : new THREE.MeshLambertMaterial({ color: color });
 
-            let platW = isCp ? 4 : 2 + Math.random() * 1.5;
-            let platD = isCp ? 4 : 2 + Math.random() * 1.5;
+            // EASIER PLATFORMS: Wider and deeper
+            let platW = isCp ? 5 : 3 + Math.random() * 2;
+            let platD = isCp ? 5 : 3 + Math.random() * 2;
 
-            // Base platform
             createBlock(lastPos.x, lastPos.y, lastPos.z, platW, 0.5, platD, mat, isCp);
 
             if (!isCp) {
-                if (typeRoll < 0.2) {
-                    // HEADHITTER: Add a ceiling block exactly 2.1 units above the platform
-                    createBlock(lastPos.x, lastPos.y + 2.4, lastPos.z, platW, 0.5, platD, mat);
-                } else if (typeRoll < 0.4) {
-                    // NEO: Add a wall in the middle, pushing the player to jump around it
-                    createBlock(lastPos.x, lastPos.y + 2, lastPos.z + platD/2 + 0.5, 3, 4, 0.5, mat);
+                if (typeRoll < 0.15) {
+                    // Headhitter (slightly higher clearance so it's less punishing)
+                    createBlock(lastPos.x, lastPos.y + 2.6, lastPos.z, platW, 0.5, platD, mat);
+                } else if (typeRoll < 0.3) {
+                    // Neo (thinner wall so it's easier to strafe around)
+                    createBlock(lastPos.x, lastPos.y + 2, lastPos.z + platD/2 + 0.5, 2.5, 4, 0.5, mat);
                 }
             }
         }
 
-        // Generate initial starting area
-        createBlock(0, 0, 0, 5, 0.5, 5, cpMat, true);
+        createBlock(0, 0, 0, 6, 0.5, 6, cpMat, true);
         for(let i=0; i<15; i++) generateNextPlatform();
 
         function showCheckpointUI() {
@@ -173,7 +174,6 @@
         function checkCollisions() {
             for (let i = 0; i < hitboxes.length; i++) {
                 if (playerBox.intersectsBox(hitboxes[i])) {
-                    // Check if it's a checkpoint platform
                     if (platforms[i].userData.isCheckpoint) {
                         if (currentCheckpoint.distanceTo(platforms[i].userData.cpPos) > 1) {
                             currentCheckpoint.copy(platforms[i].userData.cpPos);
@@ -197,86 +197,78 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // CAMERA CONTROLS (Arrow Keys)
+            // JUMP LOGIC (Moved here for better simultaneous key presses)
+            // Using auto-bunnyhop logic: holding space while grounded jumps immediately
+            if (keys['Space'] && player.isGrounded) {
+                player.vel.y = physics.jumpPower;
+                player.isGrounded = false;
+            }
+
+            // CAMERA CONTROLS
             if (keys['ArrowLeft']) player.yaw += 0.04;
             if (keys['ArrowRight']) player.yaw -= 0.04;
             if (keys['ArrowUp']) player.pitch += 0.04;
             if (keys['ArrowDown']) player.pitch -= 0.04;
             
-            // Clamp pitch to look straight up/down
             player.pitch = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, player.pitch));
 
-            // MOVEMENT INTENT (WASD mapped to Yaw direction)
+            // MOVEMENT INTENT 
             let moveX = 0; let moveZ = 0;
             if (keys['KeyW']) moveZ -= 1;
             if (keys['KeyS']) moveZ += 1;
             if (keys['KeyA']) moveX -= 1;
             if (keys['KeyD']) moveX += 1;
 
-            // Normalize diagonal movement
             if (moveX !== 0 || moveZ !== 0) {
                 let length = Math.sqrt(moveX*moveX + moveZ*moveZ);
                 moveX /= length; moveZ /= length;
             }
 
-            // Apply camera rotation to movement vector
+            // SPRINT CHECK
+            let currentSpeed = physics.baseSpeed;
+            if (keys['ControlLeft'] || keys['ControlRight']) {
+                currentSpeed *= physics.sprintMult;
+            }
+
             let sinY = Math.sin(player.yaw);
             let cosY = Math.cos(player.yaw);
             
-            let targetVx = (moveX * cosY + moveZ * sinY) * physics.speed;
-            let targetVz = (-moveX * sinY + moveZ * cosY) * physics.speed;
+            let targetVx = (moveX * cosY + moveZ * sinY) * currentSpeed;
+            let targetVz = (-moveX * sinY + moveZ * cosY) * currentSpeed;
 
-            // Apply friction/acceleration
             let control = player.isGrounded ? 1 : physics.airControl;
             player.vel.x += (targetVx - player.vel.x) * 0.2 * control;
             player.vel.z += (targetVz - player.vel.z) * 0.2 * control;
 
-            // Apply Gravity
             player.vel.y -= physics.gravity;
 
-            // --- AXIS-BY-AXIS COLLISION RESOLUTION ---
+            // --- COLLISION RESOLUTION ---
             player.isGrounded = false;
 
-            // Move X
             updatePlayerHitbox(player.vel.x, 0, 0);
-            if (checkCollisions()) {
-                player.vel.x = 0; // Hit a wall, stop X velocity
-            } else {
-                player.pos.x += player.vel.x;
-            }
+            if (checkCollisions()) player.vel.x = 0; 
+            else player.pos.x += player.vel.x;
 
-            // Move Y
             updatePlayerHitbox(0, player.vel.y, 0);
             if (checkCollisions()) {
-                if (player.vel.y < 0) {
-                    player.isGrounded = true; // Landed on floor
-                }
-                player.vel.y = 0; // Hit floor or headhitter ceiling, stop Y velocity
-            } else {
-                player.pos.y += player.vel.y;
-            }
+                if (player.vel.y < 0) player.isGrounded = true; 
+                player.vel.y = 0; 
+            } else player.pos.y += player.vel.y;
 
-            // Move Z
             updatePlayerHitbox(0, 0, player.vel.z);
-            if (checkCollisions()) {
-                player.vel.z = 0; // Hit a wall, stop Z velocity
-            } else {
-                player.pos.z += player.vel.z;
-            }
+            if (checkCollisions()) player.vel.z = 0; 
+            else player.pos.z += player.vel.z;
 
-            // Update Camera Position & Rotation
+            // --- UPDATE CAMERA ---
             camera.position.set(player.pos.x, player.pos.y + player.size.y - 0.2, player.pos.z);
             camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
 
-            // --- DEATH & WORLD GENERATION ---
-            // Fall into the void
+            // --- DEATH & CHUNK LOADING ---
             if (player.pos.y < -15) die();
 
-            // Infinite world generation (if player gets close to the end of the loaded array)
             if (player.pos.z < platforms[platforms.length - 5].position.z) {
                 for(let i=0; i<5; i++) generateNextPlatform();
                 
-                // Cleanup old platforms behind us to save memory
                 while(platforms.length > 30) {
                     let oldMesh = platforms.shift();
                     scene.remove(oldMesh);
